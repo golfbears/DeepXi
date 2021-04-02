@@ -11,6 +11,7 @@ import numpy as np
 import glob, os, pickle, platform
 import soundfile as sf
 import tensorflow as tf
+import librosa
 
 def save_wav(path, wav, f_s):
 	"""
@@ -36,9 +37,15 @@ def read_wav(path):
 		wav - waveform.
 		f_s - sampling frequency.
 	"""
+	'''
 	try: wav, f_s = sf.read(path, dtype='int16')
 	except TypeError: f_s, wav = sf.read(path)
 	return wav, f_s
+	'''
+	audio, sr = librosa.load(path, sr=16000, mono=True, dtype=np.float32)
+	audio_int = audio*32767
+	audio_int = audio_int.astype(np.int16)
+	return audio_int, sr
 
 def save_mat(path, data, name):
 	"""

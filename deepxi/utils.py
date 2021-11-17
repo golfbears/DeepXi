@@ -12,6 +12,8 @@ import glob, os, pickle, platform
 import soundfile as sf
 import tensorflow as tf
 import librosa
+from hybrid.phonemes_utils import extract_phonemes_index, simple_read_label, simple_read_label_new
+from hybrid.phoneme import Phoneme
 
 def save_wav(path, wav, f_s):
 	"""
@@ -198,3 +200,68 @@ def val_wav_batch(val_s_dir, val_d_dir):
 	val_d_len = np.array(val_d_len_list, np.int32)
 	val_snr = np.array(val_snr_list, np.int32)
 	return val_s, val_d, val_s_len, val_d_len, val_snr
+
+
+def batch_list_phoneme(file_dir, labels_dir, list_name, data_path='data', make_new=False):
+	"""
+	Places the file paths and wav lengths of an audio file into a dictionary, which
+	is then appended to a list. 'glob' is used to support Unix style pathname
+	pattern expansions. Checks if the training list has already been saved, and loads
+	it.
+
+	Argument/s:
+		file_dir - directory containing the audio files.
+		list_name - name for the list.
+		data_path - path to store pickle files.
+		make_new - re-create list.
+
+	Returns:
+		batch_list - list of file paths and wav length.
+	"""
+	ph_label_mapper = Phoneme(
+		os.path.join('/home/devpath/golfbears/DeepXi/hybrid', 'initialfinal2phoneme-lexicon.txt'))
+
+	extension = ['*.wav', '*.flac', '*.mp3']
+	if list_name.__contains__('shell') or list_name.__contains__('aidata'):
+		extension = ['**/*.wav', '*.wav', '*.flac', '*.mp3']
+		print(extension)
+	if not make_new:
+		if os.path.exists(data_path + '/' + list_name + '_list_' + platform.node() + '.p'):
+			print('Loading ' + list_name + ' list...')
+			with open(data_path + '/' + list_name + '_list_' + platform.node() + '.p', 'rb') as f:
+				batch_list = pickle.load(f)
+			if batch_list[0]['file_path'].find(file_dir) != -1:
+				print(list_name + ' list has a totaltry: of %i entries.' % (len(batch_list)))
+				return batch_list
+
+	print('Creating ' + list_name + ' list...')
+	batch_list = []
+	for i in extension:
+		path = os.path.join(file_dir, i)
+		print(path)
+		#longlist = glob.glob(os.path.join(file_dir, i))
+		longlist = glob.glob(path)
+		print(str(len(longlist)))
+		#print(longlist[0])
+		for j in glob.glob(os.path.join(file_dir, i)):
+			try:
+				f = SoundFile(j)
+				wav_len = f.seek(0, SEEK_END)
+				if wav_len == -1:
+					wav, _ = read_wav(j)
+					wav_len = len(wav)
+				m_labels=simple_read_label_new(j.split('/')[-1], labels_dir)
+				labels = [ph_label_mapper.tkn_dict.entry2Index[i.strip()] for i in m_labels]
+				#if len(labels) <= 1:
+				#	continue
+				labels=[]
+			except NameError:
+				wav, _ = read_wav(j)
+				wav_len = len(wav)
+			frame_len = int(np.floor(wav_len/160))
+			batch_list.append({'file_path': j, 'wav_len': wav_len, 'frame_len':frame_len,'label':labels}) # append dictionary.
+	if not os.path.exists(data_path): os.makedirs(data_path) # make directory.
+	with open(data_path + '/' + list_name + '_list_' + platform.node() + '.p', 'wb') as f:
+		pickle.dump(batch_list, f)
+	print('The ' + list_name + ' list has a total of %i entries.' % (len(batch_list)))
+	return batch_list

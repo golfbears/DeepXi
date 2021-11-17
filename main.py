@@ -79,6 +79,46 @@ if __name__ == '__main__':
 		log_path=args.log_path
 		)
 
+	if args.infer: deepxi.infer_noisy_wav(
+		test_s=train_s_list,
+		test_x=train_d_list,
+		test_x_len=len(test_x),
+		test_x_base_names='shell_test',
+		test_epoch=args.test_epoch,
+		model_path=args.model_path,
+		out_type=args.out_type,
+		gain=args.gain,
+		out_path=args.out_path,
+		n_filters=args.n_filters,
+		saved_data_path=args.saved_data_path,
+		)
+	'''
+	if args.infer: deepxi.infer_hybrid1(
+		test_x=test_x,
+		test_x_len=len(test_x),
+		test_x_base_names='shell_test',
+		test_epoch=args.test_epoch,
+		model_path=args.model_path,
+		out_type=args.out_type,
+		gain=args.gain,
+		out_path=args.out_path,
+		n_filters=args.n_filters,
+		saved_data_path=args.saved_data_path,
+		)
+	'''
+	if args.test: deepxi.test(
+		test_x=test_x,
+		test_x_len=test_x_len,#len(test_x),
+		test_x_base_names=test_x_base_names,
+		test_s=test_s,
+		test_s_len=test_s_len,
+		test_s_base_names=test_s_base_names,
+		test_epoch=args.test_epoch,
+		model_path=args.model_path,
+		gain=args.gain,
+		log_path=args.log_path
+		)
+	"""
 	if args.infer: deepxi.infer(
 		test_x=test_x,
 		test_x_len=test_x_len,
@@ -91,16 +131,4 @@ if __name__ == '__main__':
 		n_filters=args.n_filters,
 		saved_data_path=args.saved_data_path,
 		)
-
-	if args.test: deepxi.test(
-		test_x=test_x,
-		test_x_len=test_x_len,
-		test_x_base_names=test_x_base_names,
-		test_s=test_s,
-		test_s_len=test_s_len,
-		test_s_base_names=test_s_base_names,
-		test_epoch=args.test_epoch,
-		model_path=args.model_path,
-		gain=args.gain,
-		log_path=args.log_path
-		)
+	"""

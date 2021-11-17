@@ -1,0 +1,65 @@
+aa   | a
+a    | a
+ai   | a i
+an   | a n
+ang  | a ng
+ao   | a o
+b    | b
+ei   | e i
+en   | e n
+eng  | e ng
+i    | i
+ia   | i a
+ian  | i a n
+iang | i a ng
+iao  | i a o
+ie   | i e
+in   | i n
+ing  | i ng
+iou  | i o u
+o    | o
+ong  | o ng
+ou   | o u
+u    | u
+c    | c
+e    | e
+iy   | iy
+ua   | u a
+uai  | u a i
+uang | u a ng
+uei  | u e i
+uen  | u e n
+uo   | u o
+ch   | ch
+ix   | ix
+d    | d
+er   | er
+iong | i o ng
+uan  | u a n
+ee   | e
+f    | f
+g    | g
+h    | h
+ii   | i
+j    | j
+v    | v
+van  | v a n
+ve   | v e
+vn   | v n
+k    | k
+l    | l
+m    | m
+n    | n
+oo   | o
+p    | p
+q    | q
+r    | r
+s    | s
+sh   | sh
+t    | t
+uu   | u
+ueng | u e ng
+vv   | v
+x    | x
+z    | z
+zh   | zh

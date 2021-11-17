@@ -13,6 +13,8 @@ from tqdm import tqdm
 import math
 import numpy as np
 import tensorflow as tf
+from hybrid.hybridMixMax import hybridMixMax,simple_extract_gaussians, phoneme_extract_gaussians
+from mcra.mcra123 import mcra, mcra_2, imcra
 """
 [1] Wang, Y., Narayanan, A. and Wang, D., 2014. On training targets for
 	supervised speech separation. IEEE/ACM transactions on audio, speech, and
@@ -63,6 +65,9 @@ def inp_tgt_selector(inp_tgt_type, N_d, N_s, K, f_s, **kwargs):
 			xi_map_params=kwargs['map_params'][0],
 			cd_map_type=kwargs['map_type'][1],
 			cd_map_params=kwargs['map_params'][1])
+	elif inp_tgt_type == "MagPhonme":
+		return MagPhonemes(N_d, N_s, K, f_s, N_outp=kwargs['Noutp'], xi_map_type=kwargs['map_type'],
+			xi_map_params=kwargs['map_params'])
 	else: raise ValueError("Invalid inp_tgt type.")
 
 class MagTgt(InputTarget):
@@ -959,3 +964,124 @@ class STDCTXiCD(InputTarget):
 		_, cd_bar_hat = tf.split(xi_cd_bar_hat, num_or_size_splits=2, axis=-1)
 		cd_hat = self.cd_map.inverse(cd_bar_hat)
 		return cd_hat
+
+
+
+class MagPhonemes(MagTgt):
+	"""
+	Magnitude spectrum input and mapped a priori SNR target.
+	"""
+	def __init__(self, N_d, N_s, K, f_s, N_outp, xi_map_type, xi_map_params):
+		super().__init__(N_d, N_s, K, f_s)
+		"""
+		Argument/s
+			N_d - window duration (samples).
+			N_s - window shift (samples).
+			K - number of frequency bins.
+			f_s - sampling frequency.
+			xi_map_type - instantaneous a priori SNR map type.
+			xi_map_params - parameters for the a priori SNR map.
+		"""
+		self.n_feat = math.ceil(K/2 + 1)
+		self.n_outp = N_outp
+		self.xi_map = map_selector(xi_map_type, xi_map_params)
+		means, stds, probs = phoneme_extract_gaussians()
+		self.h_m_max = hybridMixMax(np.array(means), np.array(stds), np.array(means[0]), np.array(stds[0]), np.array(probs), 0.01, 0.99)
+
+	def stats(self, s_sample, d_sample, x_sample, wav_len):
+		"""
+		Compute statistics for map class.
+
+		Argument/s:
+			s_sample, d_sample, x_sample, wav_len - clean speech, noise, noisy speech
+				samples and their lengths.
+		"""
+		s_STMS_sample, d_STMS_sample, x_STMS_sample = self.transfrom_stats(s_sample,
+			d_sample, x_sample, wav_len)
+		xi_sample = self.xi(s_STMS_sample, d_STMS_sample)
+		self.xi_map.stats(xi_sample)
+
+	def example(self, s, s_len, l, l_len):
+		"""
+		Compute example for Deep Xi, i.e. observation (noisy-speech STMS)
+		and target (mapped a priori SNR).
+
+		Argument/s:
+			s - clean speech (dtype=tf.int32).
+			d - noise (dtype=tf.int32).
+			s_len - clean-speech length without padding (samples).`
+			d_len - noise length without padding (samples).
+			snr - SNR level.
+
+		Returns:
+			x_STMS - noisy-speech short-time magnitude spectrum.
+			xi_bar - mapped a priori SNR.
+			n_frames - number of time-domain frames.
+		"""
+		pass
+		"""
+		s_STMS, _ = self.polar_analysis(s)
+        s_f_len = tf.shape(s_STMS)[0]
+        n_frames = tf.minimum(s_f_len, l_len)
+        max = tf.maximum(n_frames)
+        tgt_map = np.zeros([len(s_len),max,self.n_outp ])
+        return s_STMS, tgt_map, n_frames
+		"""
+	def enhanced_speech(self, x_STMS, x_STPS, xi_bar_hat, gtype='omlsa'):
+		"""
+		Compute enhanced speech.
+
+		Argument/s:
+			x_STMS - noisy-speech short-time magnitude spectrum.
+			x_STPS - noisy-speech short-time phase spectrum.
+			xi_bar_hat - mapped a priori SNR estimate.
+			gtype - gain function type.
+
+		Returns:
+			enhanced speech.
+		"""
+		#gtype = 'omlsa'
+		if gtype == 'omlsa':
+			meg_pwr = np.square(x_STMS)
+			G_min = np.ones(257, float) * 0.09
+			mcra_noise = mcra(alpha_d=0.95, alpha_s=0.8, alpha_p=0.2, lambda_d=meg_pwr[0], frame_L=100, fft_len=512,
+							  delta=5)
+			#imcra_noise = imcra(alpha_d=0.89, alpha_s=0.8, alpha_p=0.2, lambda_d=meg_pwr[0], frame_L=100, fft_len=512,
+			#					delta=5, beta=1.23, b_min=1.66, gamma0=4.6, gamma1=3, zeta0=1.67)
+			x_hat = np.zeros(257, float)
+			for i, pwr in enumerate(meg_pwr):
+				#c_noise_i, G, P = imcra_noise.tracking_noise(pwr, i)
+				c_noise_i, G, P = mcra_noise.tracking_noise(pwr, i)
+				omlsa = np.power(G, P) * np.power(G_min, (1 - P)) * x_STMS[i]
+				x_hat = np.vstack((x_hat, omlsa))
+			y_STMS = x_hat[1:]
+		else:
+			#posterior_pro = np.delete(xi_bar_hat, 50, axis=1)
+			posterior_pro = np.delete(xi_bar_hat, [20, 39, 42, 50], axis=1)
+			x_STMS = np.where(x_STMS == 0, np.finfo(float).eps, x_STMS)
+			logmeg1 = np.log(x_STMS)
+			mean = np.expand_dims(np.mean(logmeg1[:20, :], axis=0), 0)
+			stand = np.expand_dims(np.std(logmeg1[:20, :], axis=0), 0)
+			self.h_m_max.update_noise(mean, stand)
+			x_hat = np.zeros(257, float)
+			for i, logf in enumerate(logmeg1):
+				o, p_mm = self.h_m_max.x_estimate_mixmax(posterior_pro[i, 1:], logf)
+				#o, p_mm = self.h_m_max.x_estimate_mixmax(self.h_m_max.prio_p, logf)
+
+				x_hat = np.vstack((x_hat, o))
+			y_STMS = np.exp(x_hat[1:])
+
+		return self.polar_synthesis(y_STMS, x_STPS)
+
+	def xi_hat(self, xi_bar_hat):
+		"""
+		A priori SNR estimate.
+
+		Argument/s:
+			xi_bar_hat - mapped a priori SNR estimate.
+
+		Returns:
+			xi_hat - a priori SNR estimate.
+		"""
+		xi_hat = self.xi_map.inverse(xi_bar_hat)
+		return xi_hat
